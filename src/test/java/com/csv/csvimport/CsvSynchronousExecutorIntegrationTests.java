@@ -2,6 +2,7 @@ package com.csv.csvimport;
 
 import com.csv.csvimport.csv.CsvFileUtils;
 import com.csv.csvimport.repository.EmployeeRepository;
+import com.csv.csvimport.service.BatchExecutionItemService;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CsvSynchronousExecutorIntegrationTests {
     @Autowired MockMvc mvc;
     @Autowired EmployeeRepository employees;
+    @Autowired BatchExecutionItemService items;
     @Autowired @Qualifier("asyncJobOperator") JobOperator jobOperator;
 
     private Object operatorTarget;
@@ -76,5 +78,24 @@ class CsvSynchronousExecutorIntegrationTests {
                 .andExpect(jsonPath("$[0].rowNumber").value(2));
         assertTrue(employees.existsById(201L));
         assertFalse(employees.existsById(202L));
+    }
+
+    @Test
+    void successfulImportHasNoItemsAfterFinishing() throws Exception {
+        String csv = String.join(",", CsvFileUtils.HEADERS) + "\n"
+                + "203,P-203,Grace,Hopper,grace@example.com,IT,90000,2020-01-02,Active,Street,123,Engineer,1990-05-04\n";
+        String location = mvc.perform(multipart("/import").file(new MockMultipartFile(
+                        "file", "data.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getHeader("Location");
+        assertNotNull(location);
+        String id = location.substring(location.lastIndexOf('/') + 1);
+
+        mvc.perform(get("/jobs/{id}", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FINISHED"))
+                .andExpect(jsonPath("$.processed").value(1));
+        assertTrue(items.items(id).isEmpty(), "Erfolgreiche BatchExecutionItem-Einträge müssen gelöscht sein");
+        mvc.perform(get("/jobs/{id}/items", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+        assertTrue(employees.existsById(203L));
     }
 }

@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BatchExecutionItemRepository extends JpaRepository<BatchExecutionItem, Long> {
     List<BatchExecutionItem> findByExecutionIdOrderById(String executionId);
+    void deleteByExecutionIdAndResultNot(String executionId, String result);
 }

@@ -21,6 +21,13 @@ public class BatchExecutionService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void started(String id, Long springBatchExecutionId) {
+        BatchExecution execution = get(id);
+        execution.setSpringBatchExecutionId(springBatchExecutionId);
+        execution.setStatus(FileProcessingStatus.IN_PROGRESS);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void status(String id, FileProcessingStatus status, String error) {
         BatchExecution execution = get(id);
         execution.setStatus(status);

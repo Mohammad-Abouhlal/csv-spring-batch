@@ -14,6 +14,7 @@ import org.springframework.batch.core.launch.support.JobOperatorFactoryBean;
 import org.springframework.batch.core.launch.support.TaskExecutorJobOperator;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Isolation;
 @RequiredArgsConstructor
 public class BatchConfig extends JdbcDefaultBatchConfiguration {
     public static final int CHUNK_SIZE = 25;
+    public static final int MAX_SKIPPED_ROWS = 100;
 
 
     private final ObjectProvider<Tracer> tracer;
@@ -79,6 +81,12 @@ public class BatchConfig extends JdbcDefaultBatchConfiguration {
         factory.setTaskExecutor(batchTaskExecutor());
         factory.afterPropertiesSet();
         return factory.getObject();}
+
+    @Bean
+    public SkipPolicy csvSkipPolicy() {
+        return (error, skipCount) -> error instanceof IllegalArgumentException
+                && skipCount < MAX_SKIPPED_ROWS;
+    }
 
     @Bean
     @StepScope

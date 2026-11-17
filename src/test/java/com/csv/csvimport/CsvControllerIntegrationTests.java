@@ -1,6 +1,7 @@
 package com.csv.csvimport;
 
 import com.csv.csvimport.csv.CsvFileUtils;
+import com.csv.csvimport.batch.BatchConfig;
 import com.csv.csvimport.domain.Employee;
 import com.csv.csvimport.domain.FileProcessingStatus;
 import com.csv.csvimport.repository.EmployeeRepository;
@@ -12,6 +13,7 @@ import java.util.concurrent.locks.LockSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.mock.web.MockMultipartFile;
@@ -31,6 +33,7 @@ class CsvControllerIntegrationTests {
     @Autowired MockMvc mvc;
     @Autowired EmployeeRepository employees;
     @Autowired BatchExecutionItemService items;
+    @Autowired SkipPolicy csvSkipPolicy;
 
     @BeforeEach
     void clean() { employees.deleteAll(); }
@@ -43,8 +46,8 @@ class CsvControllerIntegrationTests {
         assertEquals(FileProcessingStatus.FINISHED, await(id));
         mvc.perform(get("/jobs/{id}", id)).andExpect(jsonPath("$.processed").value(1));
         assertEquals("Ada", employees.findById(1L).orElseThrow().getFirstName());
-        assertEquals(1, items.items(id).size());
-        mvc.perform(get("/jobs/{id}/items", id)).andExpect(status().isOk()).andExpect(jsonPath("$[0].result").value("import"));
+        assertTrue(items.items(id).isEmpty());
+        mvc.perform(get("/jobs/{id}/items", id)).andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
     }
 
     @Test
@@ -68,7 +71,7 @@ class CsvControllerIntegrationTests {
         String id = upload("/delete", "id,personalNumber\n3,P-3\n");
         assertEquals(FileProcessingStatus.FINISHED, await(id));
         assertFalse(employees.existsById(3L));
-        assertEquals(1, items.items(id).size());
+        assertTrue(items.items(id).isEmpty());
     }
 
     @Test
@@ -81,6 +84,41 @@ class CsvControllerIntegrationTests {
         assertEquals(FileProcessingStatus.ERROR, await(id));
         mvc.perform(get("/jobs/{id}", id)).andExpect(jsonPath("$.errorMessage").isNotEmpty());
         assertTrue(employees.existsById(4L));
+        assertEquals(1, items.items(id).size());
+        assertEquals("ERROR", items.items(id).getFirst().getResult());
+        assertEquals(1L, items.items(id).getFirst().getRowNumber());
+        assertTrue(items.items(id).getFirst().getMessage().getText().contains("nicht gefunden"));
+        mvc.perform(get("/jobs/{id}/items", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].message.text").isNotEmpty());
+    }
+
+    @Test
+    void invalidRowIsRecordedAndValidRowsContinueWithoutSuccessEntries() throws Exception {
+        String header = String.join(",", CsvFileUtils.HEADERS);
+        String csv = header + "\n"
+                + "11,P-11,Ada,Lovelace,ada@example.com,IT,90000,2020-01-02,Active,Street,123,Engineer,1990-05-04\n"
+                + "12,P-12,Invalid,Person,invalid@example.com,IT,wrong,2020-01-02,Active,Street,123,Engineer,1990-05-04\n"
+                + "13,P-13,Grace,Hopper,grace@example.com,IT,90000,2020-01-02,Active,Street,123,Engineer,1990-05-04\n";
+        String id = upload("/import", csv);
+        assertEquals(FileProcessingStatus.FINISHED, await(id));
+        assertTrue(employees.existsById(11L));
+        assertFalse(employees.existsById(12L));
+        assertTrue(employees.existsById(13L));
+        mvc.perform(get("/jobs/{id}", id)).andExpect(jsonPath("$.processed").value(2))
+                .andExpect(jsonPath("$.errorMessage").isNotEmpty());
+        assertEquals(1, items.items(id).size());
+        assertEquals(12L, items.items(id).getFirst().getEmployeeId());
+        assertEquals("P-12", items.items(id).getFirst().getPersonalNumber());
+        assertEquals(2L, items.items(id).getFirst().getRowNumber());
+        assertEquals("ERROR", items.items(id).getFirst().getResult());
+    }
+
+    @Test
+    void onlyExpectedErrorsCanBeSkippedUpToTheLimit() throws Exception {
+        assertTrue(csvSkipPolicy.shouldSkip(new IllegalArgumentException("bad row"), -1));
+        assertTrue(csvSkipPolicy.shouldSkip(new IllegalArgumentException("bad row"), BatchConfig.MAX_SKIPPED_ROWS - 1));
+        assertFalse(csvSkipPolicy.shouldSkip(new IllegalArgumentException("bad row"), BatchConfig.MAX_SKIPPED_ROWS));
+        assertFalse(csvSkipPolicy.shouldSkip(new IllegalStateException("database unavailable"), 0));
     }
 
     private String upload(String path, String csv) throws Exception {

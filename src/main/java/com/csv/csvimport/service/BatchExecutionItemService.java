@@ -29,7 +29,7 @@ public class BatchExecutionItemService {
         String number = record.toMap().get("personalNumber");
         if (number != null && number.length() > 255) number = number.substring(0, 255);
         repository.save(new BatchExecutionItem(executionId, employeeId, number,
-                record.getRecordNumber(), error.getMessage()));
+                record.getRecordNumber(), error));
     }
 
     @Transactional

@@ -44,7 +44,7 @@ public class BatchExecutionItem {
     }
 
     public BatchExecutionItem(String executionId, Long employeeId, String personalNumber,
-            long rowNumber, String error) {
+            long rowNumber, Throwable error) {
         this.executionId = executionId;
         this.employeeId = employeeId;
         this.personalNumber = personalNumber;

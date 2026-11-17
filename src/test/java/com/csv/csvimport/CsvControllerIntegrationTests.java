@@ -10,6 +10,7 @@ import com.jayway.jsonpath.JsonPath;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,9 @@ class CsvControllerIntegrationTests {
         String id = upload("/import", csv);
         assertEquals(FileProcessingStatus.FINISHED, await(id));
         mvc.perform(get("/jobs/{id}", id)).andExpect(jsonPath("$.processed").value(1));
+        mvc.perform(get("/api/batch-instance/{id}", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobName").value("employeeImportJob"))
+                .andExpect(jsonPath("$.messages").isEmpty());
         assertEquals("Ada", employees.findById(1L).orElseThrow().getFirstName());
         assertTrue(items.items(id).isEmpty());
         mvc.perform(get("/jobs/{id}/items", id)).andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
@@ -112,6 +116,15 @@ class CsvControllerIntegrationTests {
         assertEquals("P-12", items.items(id).getFirst().getPersonalNumber());
         assertEquals(2L, items.items(id).getFirst().getRowNumber());
         assertEquals("ERROR", items.items(id).getFirst().getResult());
+        mvc.perform(get("/api/batch-instance/{id}", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobName").value("employeeImportJob"))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.updatedAt").isNotEmpty())
+                .andExpect(jsonPath("$.messages.length()").value(1))
+                .andExpect(jsonPath("$.messages[0].personalNumber").value("P-12"))
+                .andExpect(jsonPath("$.messages[0].message.exceptionName").value("IllegalArgumentException"))
+                .andExpect(jsonPath("$.messages[0].message.severityLevel").value("ERROR"))
+                .andExpect(jsonPath("$.messages[0].message.text").isNotEmpty());
     }
 
     @Test
@@ -122,13 +135,19 @@ class CsvControllerIntegrationTests {
         assertFalse(csvSkipPolicy.shouldSkip(new IllegalStateException("database unavailable"), 0));
     }
 
+    @Test
+    void missingBatchInstanceReturnsNotFound() throws Exception {
+        mvc.perform(get("/api/batch-instance/{id}", UUID.randomUUID()))
+                .andExpect(status().isNotFound());
+    }
+
     private String upload(String path, String csv) throws Exception {
         String location = mvc.perform(multipart(path).file(new MockMultipartFile("file", "data.csv", "text/csv",
                         csv.getBytes(StandardCharsets.UTF_8))))
                 .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
         assertNotNull(location);
         String id = location.substring(location.lastIndexOf('/') + 1);
-        assertEquals("/jobs/" + id, URI.create(location).getPath());
+        assertEquals("/api/batch-instance/" + id, URI.create(location).getPath());
         mvc.perform(get(URI.create(location).getPath())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id));
         return id;

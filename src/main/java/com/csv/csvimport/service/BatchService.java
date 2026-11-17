@@ -46,7 +46,7 @@ public class BatchService {
         Path path = directory.resolve(operation).resolve(id + ".csv").toAbsolutePath();
         files.write(path, bytes);
         try {
-            executions.uploaded(id, operation, path);
+            executions.uploaded(id, operation, jobName, path);
             executions.status(id, FileProcessingStatus.STARTED, null);
             operator.start(jobs.get(jobName), new JobParametersBuilder()
                     .addString("executionId", id)

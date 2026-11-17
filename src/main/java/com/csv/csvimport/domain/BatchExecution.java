@@ -18,6 +18,7 @@ public class BatchExecution {
     @Id
     private String id;
     private String operation;
+    private String jobName;
     private String filePath;
     private Long springBatchExecutionId;
     @Enumerated(EnumType.STRING)
@@ -33,15 +34,17 @@ public class BatchExecution {
 
     protected BatchExecution() { }
 
-    public BatchExecution(String id, String operation, String filePath) {
+    public BatchExecution(String id, String operation, String jobName, String filePath) {
         this.id = id;
         this.operation = operation;
+        this.jobName = jobName;
         this.filePath = filePath;
         this.status = FileProcessingStatus.UPLOADED;
     }
 
     public String getId() { return id; }
     public String getOperation() { return operation; }
+    public String getJobName() { return jobName; }
     public String getFilePath() { return filePath; }
     public Long getSpringBatchExecutionId() { return springBatchExecutionId; }
     public List<BatchExecutionItem> getExecutionItems() { return executionItems; }

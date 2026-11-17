@@ -16,8 +16,8 @@ public class BatchExecutionService {
     public BatchExecutionService(BatchExecutionRepository repository) { this.repository = repository; }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public BatchExecution uploaded(String id, String operation, Path file) {
-        return repository.save(new BatchExecution(id, operation, file.toString()));
+    public BatchExecution uploaded(String id, String operation, String jobName, Path file) {
+        return repository.save(new BatchExecution(id, operation, jobName, file.toString()));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -44,6 +44,12 @@ public class BatchExecutionService {
     @Transactional(readOnly = true)
     public BatchExecution get(String id) {
         return repository.findById(id).orElseThrow(() -> new NoSuchElementException("Job nicht gefunden: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public BatchExecution getWithItems(String id) {
+        return repository.findWithItemsById(id)
+                .orElseThrow(() -> new NoSuchElementException("Job nicht gefunden: " + id));
     }
 }
 

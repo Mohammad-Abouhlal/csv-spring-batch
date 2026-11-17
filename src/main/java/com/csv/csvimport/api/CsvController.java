@@ -60,7 +60,7 @@ public class CsvController {
 
     protected URI createResourceURI(String batchExecutionId, HttpServletRequest request) {
         return ServletUriComponentsBuilder.fromServletMapping(request)
-                .path(API_BASE_PATH).pathSegment(batchExecutionId).build().toUri();
+                .path(BatchInstanceController.API_BASE_PATH).pathSegment(batchExecutionId).build().toUri();
     }
 
     @GetMapping(API_BASE_PATH + "/{id}")

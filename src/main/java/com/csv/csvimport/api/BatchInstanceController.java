@@ -43,7 +43,7 @@ public class BatchInstanceController {
     }
 
     @ExceptionHandler(NoSuchElementException.class)
-    public ResponseEntity<Void> missing(NoSuchElementException error) {
+    public ResponseEntity<Void> missing() {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 }

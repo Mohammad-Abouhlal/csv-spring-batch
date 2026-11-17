@@ -137,8 +137,17 @@ class CsvControllerIntegrationTests {
 
     @Test
     void missingBatchInstanceReturnsNotFound() throws Exception {
-        mvc.perform(get("/api/batch-instance/{id}", UUID.randomUUID()))
+        UUID missingId = UUID.randomUUID();
+        mvc.perform(get("/api/batch-instance/{id}", missingId))
                 .andExpect(status().isNotFound());
+        mvc.perform(get("/api/batch-instance/{id}/items", missingId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void malformedBatchInstanceIdReturnsBadRequest() throws Exception {
+        mvc.perform(get("/api/batch-instance/not-a-uuid"))
+                .andExpect(status().isBadRequest());
     }
 
     private String upload(String path, String csv) throws Exception {

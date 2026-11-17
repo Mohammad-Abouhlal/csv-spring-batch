@@ -74,6 +74,12 @@ class CsvSynchronousExecutorIntegrationTests {
         String jobStatus = mvc.perform(get(URI.create(location))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FINISHED"))
                 .andExpect(jsonPath("$.processed").value(1))
+                .andExpect(jsonPath("$.jobName").value("employeeImportJob"))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.updatedAt").isNotEmpty())
+                .andExpect(jsonPath("$.messages.length()").value(1))
+                .andExpect(jsonPath("$.messages[0].message.exceptionName").value("IllegalArgumentException"))
+                .andExpect(jsonPath("$.messages[0].message.severityLevel").value("ERROR"))
                 .andReturn().getResponse().getContentAsString();
         System.out.println("GET " + location + " -> " + jobStatus);
 
@@ -101,6 +107,8 @@ class CsvSynchronousExecutorIntegrationTests {
         String jobStatus = mvc.perform(get(URI.create(location))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FINISHED"))
                 .andExpect(jsonPath("$.processed").value(1))
+                .andExpect(jsonPath("$.jobName").value("employeeImportJob"))
+                .andExpect(jsonPath("$.messages").isEmpty())
                 .andReturn().getResponse().getContentAsString();
         System.out.println("GET " + location + " -> " + jobStatus);
         String id = JsonPath.read(jobStatus, "$.id");
@@ -110,5 +118,35 @@ class CsvSynchronousExecutorIntegrationTests {
                 .andReturn().getResponse().getContentAsString();
         System.out.println("GET " + location + "/items -> " + itemResponse);
         assertTrue(employees.existsById(203L));
+    }
+
+    @Test
+    void importWithOnlyInvalidRowsEndsInErrorAndRetainsFailure() throws Exception {
+        String csv = String.join(",", CsvFileUtils.HEADERS) + "\n"
+                + "204,P-204,Invalid,Person,invalid@example.com,IT,wrong,2020-01-02,Active,Street,123,Engineer,1990-05-04\n";
+        String location = mvc.perform(multipart("/import").file(new MockMultipartFile(
+                        "file", "data.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
+        assertNotNull(location);
+        System.out.println("POST /import -> 201 Created, Location: " + location);
+
+        String jobStatus = mvc.perform(get(URI.create(location))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ERROR"))
+                .andExpect(jsonPath("$.processed").value(0))
+                .andExpect(jsonPath("$.errorMessage").isNotEmpty())
+                .andExpect(jsonPath("$.messages.length()").value(1))
+                .andExpect(jsonPath("$.messages[0].rowNumber").value(1))
+                .andExpect(jsonPath("$.messages[0].message.exceptionName").value("IllegalArgumentException"))
+                .andExpect(jsonPath("$.messages[0].message.text").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        System.out.println("GET " + location + " -> " + jobStatus);
+
+        String itemResponse = mvc.perform(get(URI.create(location + "/items"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].result").value("ERROR"))
+                .andExpect(jsonPath("$[0].rowNumber").value(1))
+                .andReturn().getResponse().getContentAsString();
+        System.out.println("GET " + location + "/items -> " + itemResponse);
+        assertFalse(employees.existsById(204L));
     }
 }

@@ -3,6 +3,8 @@ package com.csv.csvimport;
 import com.csv.csvimport.csv.CsvFileUtils;
 import com.csv.csvimport.repository.EmployeeRepository;
 import com.csv.csvimport.service.BatchExecutionItemService;
+import com.jayway.jsonpath.JsonPath;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,15 +69,16 @@ class CsvSynchronousExecutorIntegrationTests {
                         "file", "data.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))))
                 .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
         assertNotNull(location);
-        String id = location.substring(location.lastIndexOf('/') + 1);
 
-        mvc.perform(get("/jobs/{id}", id)).andExpect(status().isOk())
+        mvc.perform(get(URI.create(location))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FINISHED"))
                 .andExpect(jsonPath("$.processed").value(1));
-        mvc.perform(get("/jobs/{id}/items", id)).andExpect(status().isOk())
+
+        mvc.perform(get(URI.create(location + "/items"))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].result").value("ERROR"))
                 .andExpect(jsonPath("$[0].rowNumber").value(2));
+
         assertTrue(employees.existsById(201L));
         assertFalse(employees.existsById(202L));
     }
@@ -88,13 +91,14 @@ class CsvSynchronousExecutorIntegrationTests {
                         "file", "data.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))))
                 .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
         assertNotNull(location);
-        String id = location.substring(location.lastIndexOf('/') + 1);
 
-        mvc.perform(get("/jobs/{id}", id)).andExpect(status().isOk())
+        String jobStatus = mvc.perform(get(URI.create(location))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FINISHED"))
-                .andExpect(jsonPath("$.processed").value(1));
+                .andExpect(jsonPath("$.processed").value(1))
+                .andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(jobStatus, "$.id");
         assertTrue(items.items(id).isEmpty(), "Erfolgreiche BatchExecutionItem-Einträge müssen gelöscht sein");
-        mvc.perform(get("/jobs/{id}/items", id)).andExpect(status().isOk())
+        mvc.perform(get(URI.create(location + "/items"))).andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
         assertTrue(employees.existsById(203L));
     }

@@ -6,6 +6,7 @@ import com.csv.csvimport.domain.FileProcessingStatus;
 import com.csv.csvimport.service.BatchExecutionItemService;
 import com.csv.csvimport.service.BatchExecutionService;
 import com.csv.csvimport.service.BatchService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
@@ -25,6 +26,8 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @RestController
 public class CsvController {
+    public static final String API_BASE_PATH = "/jobs";
+
     private final BatchService batch;
     private final BatchExecutionService executions;
     private final BatchExecutionItemService items;
@@ -36,34 +39,38 @@ public class CsvController {
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Void> importCsv(@RequestParam("file") MultipartFile file) throws IOException {
-        return start("import", file);
+    public ResponseEntity<Void> importCsv(@RequestParam("file") MultipartFile file, HttpServletRequest request) throws IOException {
+        return start("import", file, request);
     }
 
     @PostMapping(value = "/update", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Void> updateCsv(@RequestParam("file") MultipartFile file) throws IOException {
-        return start("update", file);
+    public ResponseEntity<Void> updateCsv(@RequestParam("file") MultipartFile file, HttpServletRequest request) throws IOException {
+        return start("update", file, request);
     }
 
     @PostMapping(value = "/delete", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Void> deleteCsv(@RequestParam("file") MultipartFile file) throws IOException {
-        return start("delete", file);
+    public ResponseEntity<Void> deleteCsv(@RequestParam("file") MultipartFile file, HttpServletRequest request) throws IOException {
+        return start("delete", file, request);
     }
 
-    private ResponseEntity<Void> start(String operation, MultipartFile file) throws IOException {
+    private ResponseEntity<Void> start(String operation, MultipartFile file, HttpServletRequest request) throws IOException {
         String id = batch.start(operation, file.getBytes());
-        URI location = ServletUriComponentsBuilder.fromCurrentContextPath().path("/jobs/{id}").buildAndExpand(id).toUri();
-        return ResponseEntity.accepted().location(location).build();
+        return ResponseEntity.created(createResourceURI(id, request)).build();
     }
 
-    @GetMapping("/jobs/{id}")
+    protected URI createResourceURI(String batchExecutionId, HttpServletRequest request) {
+        return ServletUriComponentsBuilder.fromServletMapping(request)
+                .path(API_BASE_PATH).pathSegment(batchExecutionId).build().toUri();
+    }
+
+    @GetMapping(API_BASE_PATH + "/{id}")
     public JobStatus status(@PathVariable String id) {
         BatchExecution execution = executions.get(id);
         return new JobStatus(execution.getId(), execution.getOperation(), execution.getStatus(),
                 execution.getProcessed(), execution.getErrorMessage());
     }
 
-    @GetMapping("/jobs/{id}/items")
+    @GetMapping(API_BASE_PATH + "/{id}/items")
     public List<BatchExecutionItem> items(@PathVariable String id) {
         executions.get(id);
         return items.items(id);

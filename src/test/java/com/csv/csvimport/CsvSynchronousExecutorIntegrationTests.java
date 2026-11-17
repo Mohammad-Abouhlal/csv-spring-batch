@@ -65,7 +65,7 @@ class CsvSynchronousExecutorIntegrationTests {
                 + "202,P-202,Invalid,Person,invalid@example.com,IT,wrong,2020-01-02,Active,Street,123,Engineer,1990-05-04\n";
         String location = mvc.perform(multipart("/import").file(new MockMultipartFile(
                         "file", "data.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))))
-                .andExpect(status().isAccepted()).andReturn().getResponse().getHeader("Location");
+                .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
         assertNotNull(location);
         String id = location.substring(location.lastIndexOf('/') + 1);
 
@@ -86,7 +86,7 @@ class CsvSynchronousExecutorIntegrationTests {
                 + "203,P-203,Grace,Hopper,grace@example.com,IT,90000,2020-01-02,Active,Street,123,Engineer,1990-05-04\n";
         String location = mvc.perform(multipart("/import").file(new MockMultipartFile(
                         "file", "data.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))))
-                .andExpect(status().isAccepted()).andReturn().getResponse().getHeader("Location");
+                .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
         assertNotNull(location);
         String id = location.substring(location.lastIndexOf('/') + 1);
 

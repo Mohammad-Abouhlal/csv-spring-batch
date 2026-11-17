@@ -7,6 +7,7 @@ import com.csv.csvimport.domain.FileProcessingStatus;
 import com.csv.csvimport.repository.EmployeeRepository;
 import com.csv.csvimport.service.BatchExecutionItemService;
 import com.jayway.jsonpath.JsonPath;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.locks.LockSupport;
@@ -124,10 +125,11 @@ class CsvControllerIntegrationTests {
     private String upload(String path, String csv) throws Exception {
         String location = mvc.perform(multipart(path).file(new MockMultipartFile("file", "data.csv", "text/csv",
                         csv.getBytes(StandardCharsets.UTF_8))))
-                .andExpect(status().isAccepted()).andReturn().getResponse().getHeader("Location");
+                .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
         assertNotNull(location);
         String id = location.substring(location.lastIndexOf('/') + 1);
-        mvc.perform(get("/jobs/{id}", id)).andExpect(status().isOk())
+        assertEquals("/jobs/" + id, URI.create(location).getPath());
+        mvc.perform(get(URI.create(location).getPath())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id));
         return id;
     }

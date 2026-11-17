@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: Import-CSV
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/employees?createDatabaseIfNotExist=true}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: always
+
+app:
+  csv:
+    directory: ${CSV_UPLOAD_DIR:${java.io.tmpdir}/employee-csv-batch}

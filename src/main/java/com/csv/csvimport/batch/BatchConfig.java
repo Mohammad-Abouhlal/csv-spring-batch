@@ -72,7 +72,7 @@ public class BatchConfig extends JdbcDefaultBatchConfiguration {
 //        return executor;
 //    }
 
-    @Bean(name = "asyncJobOperator")
+    @Bean
     public JobOperator jobOperator() throws Exception {
         JobOperatorFactoryBean factory = new JobOperatorFactoryBean();
         factory.setJobRepository(jobRepository());

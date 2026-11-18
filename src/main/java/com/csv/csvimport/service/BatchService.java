@@ -24,7 +24,7 @@ public class BatchService {
     private final CsvFileUtils files;
     private final Path directory;
 
-    public BatchService(Map<String, Job> jobs, @Qualifier("asyncJobOperator") JobOperator operator,
+    public BatchService(Map<String, Job> jobs, JobOperator operator,
             BatchExecutionService executions, CsvFileUtils files, @Value("${app.csv.directory}") String directory) {
         this.jobs = jobs;
         this.operator = operator;

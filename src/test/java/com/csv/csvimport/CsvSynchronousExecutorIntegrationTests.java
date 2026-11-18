@@ -6,6 +6,7 @@ import com.csv.csvimport.service.BatchExecutionItemService;
 import com.jayway.jsonpath.JsonPath;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -57,6 +59,29 @@ class CsvSynchronousExecutorIntegrationTests {
         if (operatorTarget != null && originalExecutor != null) {
             ReflectionTestUtils.setField(operatorTarget, "taskExecutor", originalExecutor);
         }
+    }
+
+    @Test
+    void jobOperatorRunsOnTheRequestThreadWithSynchronousExecutor() throws Exception {
+        Thread requestThread = Thread.currentThread();
+        AtomicReference<Thread> jobThread = new AtomicReference<>();
+        ReflectionTestUtils.setField(operatorTarget, "taskExecutor", (TaskExecutor) task ->
+                new SyncTaskExecutor().execute(() -> {
+                    jobThread.set(Thread.currentThread());
+                    task.run();
+                }));
+
+        String csv = String.join(",", CsvFileUtils.HEADERS) + "\n"
+                + "205,P-205,Test,Person,test@example.com,IT,90000,2020-01-02,Active,Street,123,Engineer,1990-05-04\n";
+        String location = mvc.perform(multipart("/import").file(new MockMultipartFile(
+                        "file", "data.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
+        assertNotNull(location);
+        assertNotNull(jobThread.get(), "Der JobOperator muss den gemessenen Executor benutzen");
+        assertSame(requestThread, jobThread.get(), "Der JobOperator muss im Request-Thread laufen");
+        mvc.perform(get(URI.create(location))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FINISHED"));
+        assertTrue(employees.existsById(205L));
     }
 
     @Test

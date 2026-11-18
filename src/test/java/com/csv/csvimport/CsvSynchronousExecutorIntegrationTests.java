@@ -6,6 +6,8 @@ import com.csv.csvimport.service.BatchExecutionItemService;
 import com.jayway.jsonpath.JsonPath;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,9 +67,11 @@ class CsvSynchronousExecutorIntegrationTests {
     void jobOperatorRunsOnTheRequestThreadWithSynchronousExecutor() throws Exception {
         Thread requestThread = Thread.currentThread();
         AtomicReference<Thread> jobThread = new AtomicReference<>();
+        CountDownLatch executorInvoked = new CountDownLatch(1);
         ReflectionTestUtils.setField(operatorTarget, "taskExecutor", (TaskExecutor) task ->
                 new SyncTaskExecutor().execute(() -> {
                     jobThread.set(Thread.currentThread());
+                    executorInvoked.countDown();
                     task.run();
                 }));
 
@@ -77,7 +81,8 @@ class CsvSynchronousExecutorIntegrationTests {
                         "file", "data.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))))
                 .andExpect(status().isCreated()).andReturn().getResponse().getHeader("Location");
         assertNotNull(location);
-        assertNotNull(jobThread.get(), "Der JobOperator muss den gemessenen Executor benutzen");
+        assertTrue(executorInvoked.await(5, TimeUnit.SECONDS),
+                "Der JobOperator muss den gemessenen Executor benutzen");
         assertSame(requestThread, jobThread.get(), "Der JobOperator muss im Request-Thread laufen");
         mvc.perform(get(URI.create(location))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FINISHED"));

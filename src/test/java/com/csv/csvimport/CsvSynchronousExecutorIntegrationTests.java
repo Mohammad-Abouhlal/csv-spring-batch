@@ -3,6 +3,7 @@ package com.csv.csvimport;
 import com.csv.csvimport.csv.CsvFileUtils;
 import com.csv.csvimport.repository.EmployeeRepository;
 import com.csv.csvimport.service.BatchExecutionItemService;
+import com.csv.csvimport.service.BatchService;
 import com.jayway.jsonpath.JsonPath;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +43,7 @@ class CsvSynchronousExecutorIntegrationTests {
     @Autowired MockMvc mvc;
     @Autowired EmployeeRepository employees;
     @Autowired BatchExecutionItemService items;
-    @Autowired JobOperator jobOperator;
+    @Autowired BatchService batchService;
 
     private Object operatorTarget;
     private TaskExecutor originalExecutor;
@@ -50,7 +51,10 @@ class CsvSynchronousExecutorIntegrationTests {
     @BeforeEach
     void useSynchronousExecutor() {
         employees.deleteAll();
-        operatorTarget = AopTestUtils.getUltimateTargetObject(jobOperator);
+        Object serviceTarget = AopTestUtils.getUltimateTargetObject(batchService);
+        JobOperator serviceOperator = (JobOperator) ReflectionTestUtils.getField(serviceTarget, "operator");
+        assertNotNull(serviceOperator, "BatchService muss einen JobOperator verwenden");
+        operatorTarget = AopTestUtils.getUltimateTargetObject(serviceOperator);
         originalExecutor = (TaskExecutor) ReflectionTestUtils.getField(operatorTarget, "taskExecutor");
         assertNotNull(originalExecutor);
         ReflectionTestUtils.setField(operatorTarget, "taskExecutor", new SyncTaskExecutor());
